@@ -16,18 +16,18 @@ def cleanup(x):
         return float(x)
 
 volume = volume.apply(lambda x: cleanup(x))
-volume = volume.astype(float32)
+volume = volume.astype('float32')
 
 ##### 
 typestr = (usd_trades['d.type_str'])
-typestr[typestr == 'bid'] = 0 
-typestr[typestr == 'ask'] = 1
+#typestr[typestr == 'bid'] = 0 
+#typestr[typestr == 'ask'] = 1
 
-trades_1min = trades.resample('1min').diff(1).dropna()
+trades_1min = trades.resample('1min').sum().diff(1).dropna()
 volume_1min = volume.resample('1min', how='sum')
 
 # assign trade sign to 1 minute time bar by averaging buys and sells and taking the more common one
-typestr_1min = typestr.astype(float32).resample('1min',how='mean').round()
+typestr_1min = typestr.astype('float32').resample('1min',how='mean').round()
 
 df = pandas.DataFrame({'type': typestr_1min, 'volume': volume_1min})
 df_trades = pandas.DataFrame({'volume': volume_1min, 'trades': trades_1min})
@@ -130,12 +130,15 @@ diffs = []
 for start,end in buckets:
   diffs.append(end-start)
  
-vpin_df = pandas.rolling_mean(pandas.Series(OI[:-1], index=mid_buckets), window=500)
-trades_adj = trades.resample('1min').reindex_like(vpin_df, method='ffill')
+#vpin_df = pandas.rolling_mean(pandas.Series(OI[:-1], index=mid_buckets), window=500)
+vpin_df = pandas.Series(OI[:-1], index=mid_buckets).rolling(500).mean()
+
+trades_adj = trades.resample('1min').sum().reindex_like(vpin_df, method='ffill')
 
 #######
 ## Plot VPIN vs Trades
 import matplotlib as mpl
+from matplotlib import pyplot as plt
 mpl.rc('font', **{'sans-serif':'Verdana','family':'sans-serif','size':8})
 mpl.rcParams['xtick.direction'] = 'out'
 mpl.rcParams['ytick.direction'] = 'out'
@@ -157,22 +160,22 @@ fig.tight_layout()
 #####
 ## Get mid price series from ticker for the same period
 
-all_ticker = pandas.read_csv('./all_ticker.txt', parse_dates=[0], index_col=0)
+#all_ticker = pandas.read_csv('./all_ticker.txt', parse_dates=[0], index_col=0)
 
-ticker_df = all_ticker.ix[vpin_df.index[0] : vpin_df.index[-1]]
+#ticker_df = all_ticker.ix[vpin_df.index[0] : vpin_df.index[-1]]
 # calculate mid
-ticker_df = ticker_df.resample('1min').apply(axis=1, func=lambda s: (s['d.bid'] + s['d.ask'])/2)
+#ticker_df = ticker_df.resample('1min').apply(axis=1, func=lambda s: (s['d.bid'] + s['d.ask'])/2)
 
 # align with VPIN
-ticker_df = ticker_df.reindex_like(vpin_df, method='ffill')
+#ticker_df = ticker_df.reindex_like(vpin_df, method='ffill')
 
 ### plot of return distributions of sampling by volume time (more normal).
 plt.figure()
 # volume-time samples price returns
 p1 = trades_expanded[1].hist(normed=True, bins=45, alpha=0.3)
 # trade-time sampled price returns
-p2 =ticker_df.diff(1).hist(normed=True, bins=45, alpha=0.3)
-p2.legend(['Volume Time', 'Chronological'])
+#p2 =ticker_df.diff(1).hist(normed=True, bins=45, alpha=0.3)
+#p2.legend(['Volume Time', 'Chronological'])
 
 plt.draw()
 
@@ -183,4 +186,5 @@ ax = pandas.DataFrame({'VPIN': vpin_df , 'Price': trades_adj.fillna(method='ffil
 ax.set_title('Price vs VPIN')
 ax.right_ax.set_ylabel('Probability of Informed Trading')
 plt.draw()
-
+plt.show()
+print('done')
